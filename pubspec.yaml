@@ -1,6 +1,6 @@
 name: sf_media_picker
 description: "Instagram-inspired Flutter media picker with image and video support, album switching, and live preview. Pure Dart UI that plugs into any app."
-version: 1.0.1
+version: 1.0.2
 homepage: https://github.com/dharmik-dalwadi-seaflux/sf_media_picker
 repository: https://github.com/dharmik-dalwadi-seaflux/sf_media_picker
 issue_tracker: https://github.com/dharmik-dalwadi-seaflux/sf_media_picker/issues
