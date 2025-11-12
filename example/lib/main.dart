@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:photo_manager/photo_manager.dart';
 import 'package:sf_media_picker/sf_media_picker.dart';
 
 void main() {
@@ -26,7 +25,7 @@ class _Home extends StatefulWidget {
 }
 
 class _HomeState extends State<_Home> {
-  AssetEntity? _selected;
+  SfMediaAsset? _selected;
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +59,7 @@ class _HomeState extends State<_Home> {
       ),
       body: SFMediaPicker(
         selectedAsset: _selected,
-        onAssetSelected: (AssetEntity asset) {
+        onAssetSelected: (SfMediaAsset asset) {
           setState(() {
             _selected = asset;
           });

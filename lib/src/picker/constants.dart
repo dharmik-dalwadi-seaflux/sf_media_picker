@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 
-typedef AssetSelectionCallback = ValueChanged<AssetEntity>;
+import 'models/sf_media_asset.dart';
+
+typedef AssetSelectionCallback = ValueChanged<SfMediaAsset>;
 
 const double kDefaultPreviewHeightFactor = 0.35;
 const int kDefaultCrossAxisCount = 4;

@@ -9,6 +9,8 @@ import 'package:video_player/video_player.dart';
 import 'album_dropdown.dart';
 import 'asset_grid.dart';
 import 'constants.dart';
+import 'models/asset_entity_mapper.dart';
+import 'models/sf_media_asset.dart';
 import 'preview_section.dart';
 
 /// Displays an Instagram-inspired media picker for images and videos.
@@ -32,7 +34,7 @@ class SFMediaPicker extends StatefulWidget {
   final AssetSelectionCallback? onAssetSelected;
 
   /// Initially selected asset.
-  final AssetEntity? selectedAsset;
+  final SfMediaAsset? selectedAsset;
 
   /// Fraction of screen height used by the preview area.
   final double previewHeightFactor;
@@ -57,7 +59,9 @@ class _SFMediaPickerState extends State<SFMediaPicker>
 
   List<AssetPathEntity> _albums = <AssetPathEntity>[];
   AssetPathEntity? _activeAlbum;
-  AssetEntity? _selected;
+  AssetEntity? _selectedEntity;
+  String? _pendingSelectedAssetId;
+  SfMediaAsset? _initialSelectedAsset;
   VideoPlayerController? _videoController;
   bool _isVideoPlaying = false;
 
@@ -66,10 +70,25 @@ class _SFMediaPickerState extends State<SFMediaPicker>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _filterOptions = _createBaseFilterOptions();
-    _selected = widget.selectedAsset;
+    _initialSelectedAsset = widget.selectedAsset;
+    _pendingSelectedAssetId = widget.selectedAsset?.id;
     _requestAndLoad();
     PhotoManager.addChangeCallback(_onGalleryChanged);
     PhotoManager.startChangeNotify();
+  }
+
+  @override
+  void didUpdateWidget(covariant SFMediaPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedAsset?.id != oldWidget.selectedAsset?.id) {
+      _initialSelectedAsset = widget.selectedAsset;
+      _pendingSelectedAssetId = widget.selectedAsset?.id;
+      if (_pendingSelectedAssetId == null) {
+        _selectedEntity = null;
+      } else {
+        _loadInitialSelectionIfPossible();
+      }
+    }
   }
 
   @override
@@ -104,10 +123,29 @@ class _SFMediaPickerState extends State<SFMediaPicker>
         await PhotoManager.requestPermissionExtend();
     if (!mounted) return;
     if (permission.isAuth) {
+      await _loadInitialSelectionIfPossible();
       await _loadAlbums();
       await _loadNextPage(reset: true);
     } else {
       await PhotoManager.openSetting();
+    }
+  }
+
+  Future<void> _loadInitialSelectionIfPossible() async {
+    final SfMediaAsset? asset = _initialSelectedAsset;
+    final String? assetId = _pendingSelectedAssetId;
+    if (asset == null || assetId == null) return;
+    try {
+      final AssetEntity? entity = await resolveAssetEntity(asset);
+      if (!mounted || entity == null) return;
+      if (entity.id != assetId) return;
+      _selectedEntity = entity;
+      _pendingSelectedAssetId = entity.id;
+      await _prepareVideoIfNeeded(_selectedEntity);
+      if (!mounted) return;
+      setState(() {});
+    } catch (_) {
+      // Ignore resolution failures; the asset might have been deleted.
     }
   }
 
@@ -119,8 +157,11 @@ class _SFMediaPickerState extends State<SFMediaPicker>
     _currentPage = 0;
     _hasMoreToLoad = true;
     _assets.clear();
-    _selected = widget.selectedAsset;
+    _initialSelectedAsset = widget.selectedAsset;
+    _pendingSelectedAssetId = widget.selectedAsset?.id;
+    _selectedEntity = null;
     setState(() {});
+    await _loadInitialSelectionIfPossible();
     await _loadAlbums();
     await _loadNextPage(reset: true);
   }
@@ -190,13 +231,24 @@ class _SFMediaPickerState extends State<SFMediaPicker>
       );
 
       if (reset && page.isNotEmpty) {
-        if (_selected == null) {
-          _selected = widget.selectedAsset ?? page.first;
-          await _prepareVideoIfNeeded(_selected);
-        } else if (widget.selectedAsset != null &&
-            _selected?.id != widget.selectedAsset?.id) {
-          _selected = widget.selectedAsset;
-          await _prepareVideoIfNeeded(_selected);
+        AssetEntity? nextSelected = _selectedEntity;
+        final String? desiredId = _pendingSelectedAssetId;
+        if (desiredId != null) {
+          nextSelected = page.firstWhere(
+            (AssetEntity entity) => entity.id == desiredId,
+            orElse: () => nextSelected ?? page.first,
+          );
+        }
+
+        final AssetEntity resolvedSelection =
+            nextSelected ?? page.first;
+
+        if (_selectedEntity?.id != resolvedSelection.id) {
+          _selectedEntity = resolvedSelection;
+          _pendingSelectedAssetId = resolvedSelection.id;
+          await _prepareVideoIfNeeded(_selectedEntity);
+        } else if (_selectedEntity != null) {
+          await _prepareVideoIfNeeded(_selectedEntity);
         }
       }
 
@@ -248,9 +300,10 @@ class _SFMediaPickerState extends State<SFMediaPicker>
 
   void _onSelect(AssetEntity entity) {
     setState(() {
-      _selected = entity;
+      _selectedEntity = entity;
+      _pendingSelectedAssetId = entity.id;
     });
-    widget.onAssetSelected?.call(entity);
+    widget.onAssetSelected?.call(entity.toSfMediaAsset());
     unawaited(_prepareVideoIfNeeded(entity));
   }
 
@@ -261,7 +314,8 @@ class _SFMediaPickerState extends State<SFMediaPicker>
       _currentPage = 0;
       _hasMoreToLoad = true;
       _assets.clear();
-      _selected = null;
+      _selectedEntity = null;
+      _pendingSelectedAssetId = null;
     });
     unawaited(_loadNextPage(reset: true));
   }
@@ -319,7 +373,7 @@ class _SFMediaPickerState extends State<SFMediaPicker>
 
   @override
   Widget build(BuildContext context) {
-    final AssetEntity? selected = _selected;
+    final AssetEntity? selected = _selectedEntity;
     final double previewHeight =
         MediaQuery.of(context).size.height * widget.previewHeightFactor;
 

@@ -1,0 +1,10 @@
+{
+  "packages": {
+    ".": {
+      "package-name": "sf_media_picker",
+      "release-type": "dart",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}
+

@@ -77,7 +77,6 @@ The `SFMediaPicker` is a reusable widget that can be embedded anywhere in your a
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:photo_manager/photo_manager.dart';
 import 'package:sf_media_picker/sf_media_picker.dart';
 
 class MyApp extends StatelessWidget {
@@ -95,7 +94,7 @@ class _MediaPickerScreen extends StatefulWidget {
 }
 
 class _MediaPickerScreenState extends State<_MediaPickerScreen> {
-  AssetEntity? _selected;
+  SfMediaAsset? _selected;
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +119,7 @@ class _MediaPickerScreenState extends State<_MediaPickerScreen> {
       ),
       body: SFMediaPicker(
         selectedAsset: _selected,
-        onAssetSelected: (AssetEntity asset) {
+        onAssetSelected: (SfMediaAsset asset) {
           setState(() {
             _selected = asset;
           });
@@ -135,8 +134,8 @@ class _MediaPickerScreenState extends State<_MediaPickerScreen> {
 
 | Property | Type | Default | Description |
 | --- | --- | --- | --- |
-| `selectedAsset` | `AssetEntity?` | `null` | Asset to highlight when the picker loads. |
-| `onAssetSelected` | `ValueChanged<AssetEntity>?` | `null` | Callback fired whenever the selection changes. |
+| `selectedAsset` | `SfMediaAsset?` | `null` | Asset to highlight when the picker loads. |
+| `onAssetSelected` | `ValueChanged<SfMediaAsset>?` | `null` | Callback fired whenever the selection changes. |
 | `previewHeightFactor` | `double` | `0.35` | Portion of available height dedicated to the preview. Must be between `0` and `1`. |
 | `gridCrossAxisCount` | `int` | `4` | Number of columns in the asset grid. |
 
@@ -155,22 +154,19 @@ SFMediaPicker(
 ### Working with Selected Media
 
 ```dart
-// Get the file
-File? file = await assetEntity.file;
+// Get a playback-ready file (may be compressed by the platform)
+final file = await asset.loadFile();
 
-// Get image bytes
-Uint8List? imageBytes = await assetEntity.originBytes;
+// Request the original file when you need the highest quality
+final originalFile = await asset.loadFile(original: true);
 
-// Get thumbnail
-Uint8List? thumbnail = await assetEntity.thumbnailDataWithSize(
-  const ThumbnailSize(300, 300),
-);
+// Fetch thumbnail bytes without relying on photo_manager directly
+final thumbnail = await asset.loadThumbnail(width: 300, height: 300);
 
-// Check media type
-if (assetEntity.type == AssetType.image) {
-  // Handle image
-} else if (assetEntity.type == AssetType.video) {
-  // Handle video
+if (asset.isImage) {
+  // Handle image-specific logic
+} else if (asset.isVideo) {
+  // Handle video-specific logic
 }
 ```
 
