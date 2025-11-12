@@ -18,7 +18,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  sf_media_picker: ^0.1.0
+  sf_media_picker: ^1.0.0
 ```
 
 Or install from a local path:
@@ -108,7 +108,7 @@ class _MediaPickerScreenState extends State<_MediaPickerScreen> {
             TextButton(
               onPressed: () {
                 // Handle selected media
-                print('Selected: ${_selected!.id}');
+                print('Selected: ${_selected!.filePath}');
               },
               child: const Text(
                 'Done',
@@ -123,6 +123,7 @@ class _MediaPickerScreenState extends State<_MediaPickerScreen> {
           setState(() {
             _selected = asset;
           });
+          debugPrint('Selected path: ${asset.filePath}');
         },
       ),
     );
@@ -162,6 +163,12 @@ final originalFile = await asset.loadFile(original: true);
 
 // Fetch thumbnail bytes without relying on photo_manager directly
 final thumbnail = await asset.loadThumbnail(width: 300, height: 300);
+
+// Direct file system path, when available
+final path = asset.filePath;
+if (path != null) {
+  print('Use the path directly: $path');
+}
 
 if (asset.isImage) {
   // Handle image-specific logic

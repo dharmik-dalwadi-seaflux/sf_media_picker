@@ -41,7 +41,7 @@ class _HomeState extends State<_Home> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Selected: ${_selected!.type.name} • ${_selected!.title ?? ''}',
+                      'Selected: ${_selected!.type.name} • ${_selected!.title ?? ''} • ${_selected!.filePath ?? 'path unavailable'}',
                     ),
                   ),
                 );
@@ -63,6 +63,7 @@ class _HomeState extends State<_Home> {
           setState(() {
             _selected = asset;
           });
+          debugPrint('Selected asset path: ${asset.filePath}');
         },
       ),
     );

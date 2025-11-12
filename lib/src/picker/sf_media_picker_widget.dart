@@ -64,6 +64,10 @@ class _SFMediaPickerState extends State<SFMediaPicker>
   SfMediaAsset? _initialSelectedAsset;
   VideoPlayerController? _videoController;
   bool _isVideoPlaying = false;
+  File? _selectedImageFile;
+  bool _isImageLoading = false;
+  String? _selectedFilePath;
+  int _selectionGeneration = 0;
 
   @override
   void initState() {
@@ -72,6 +76,7 @@ class _SFMediaPickerState extends State<SFMediaPicker>
     _filterOptions = _createBaseFilterOptions();
     _initialSelectedAsset = widget.selectedAsset;
     _pendingSelectedAssetId = widget.selectedAsset?.id;
+    _selectedFilePath = widget.selectedAsset?.filePath;
     _requestAndLoad();
     PhotoManager.addChangeCallback(_onGalleryChanged);
     PhotoManager.startChangeNotify();
@@ -80,14 +85,24 @@ class _SFMediaPickerState extends State<SFMediaPicker>
   @override
   void didUpdateWidget(covariant SFMediaPicker oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.selectedAsset?.id != oldWidget.selectedAsset?.id) {
+    final String? nextSelectedId = widget.selectedAsset?.id;
+    if (nextSelectedId != oldWidget.selectedAsset?.id) {
       _initialSelectedAsset = widget.selectedAsset;
-      _pendingSelectedAssetId = widget.selectedAsset?.id;
+      _pendingSelectedAssetId = nextSelectedId;
       if (_pendingSelectedAssetId == null) {
         _selectedEntity = null;
+        _selectedImageFile = null;
+        _selectedFilePath = null;
+        _isImageLoading = false;
+        _selectionGeneration++;
+        setState(() {});
       } else {
+        _selectedFilePath = widget.selectedAsset?.filePath;
         _loadInitialSelectionIfPossible();
       }
+    } else if (widget.selectedAsset?.filePath !=
+        oldWidget.selectedAsset?.filePath) {
+      _selectedFilePath = widget.selectedAsset?.filePath;
     }
   }
 
@@ -139,11 +154,7 @@ class _SFMediaPickerState extends State<SFMediaPicker>
       final AssetEntity? entity = await resolveAssetEntity(asset);
       if (!mounted || entity == null) return;
       if (entity.id != assetId) return;
-      _selectedEntity = entity;
-      _pendingSelectedAssetId = entity.id;
-      await _prepareVideoIfNeeded(_selectedEntity);
-      if (!mounted) return;
-      setState(() {});
+      _handleSelection(entity, externalAsset: asset);
     } catch (_) {
       // Ignore resolution failures; the asset might have been deleted.
     }
@@ -160,6 +171,10 @@ class _SFMediaPickerState extends State<SFMediaPicker>
     _initialSelectedAsset = widget.selectedAsset;
     _pendingSelectedAssetId = widget.selectedAsset?.id;
     _selectedEntity = null;
+    _selectedImageFile = null;
+    _selectedFilePath = null;
+    _isImageLoading = false;
+    _selectionGeneration++;
     setState(() {});
     await _loadInitialSelectionIfPossible();
     await _loadAlbums();
@@ -168,6 +183,65 @@ class _SFMediaPickerState extends State<SFMediaPicker>
 
   void _onGalleryChanged(MethodCall _) {
     _refreshAll();
+  }
+
+  void _handleSelection(AssetEntity entity, {SfMediaAsset? externalAsset}) {
+    final bool isVideo = entity.type == AssetType.video;
+    final int generation = ++_selectionGeneration;
+
+    File? initialFile;
+    final String? externalPath = externalAsset?.filePath;
+    if (!isVideo && externalPath != null) {
+      final File candidate = File(externalPath);
+      if (candidate.existsSync()) {
+        initialFile = candidate;
+      }
+    }
+
+    setState(() {
+      _selectedEntity = entity;
+      _pendingSelectedAssetId = entity.id;
+      _selectedImageFile = isVideo ? null : initialFile;
+      _isImageLoading = !isVideo && initialFile == null;
+      _selectedFilePath = initialFile?.path ?? externalPath;
+    });
+
+    unawaited(_prepareVideoIfNeeded(entity, generation: generation));
+    if (!isVideo) {
+      if (initialFile != null) {
+        unawaited(_notifySelection(entity, filePath: initialFile.path));
+      } else {
+        unawaited(_loadImageForPreview(entity, generation));
+      }
+    }
+  }
+
+  Future<void> _loadImageForPreview(AssetEntity entity, int generation) async {
+    try {
+      final File? file = await entity.file;
+      if (!mounted || generation != _selectionGeneration) return;
+      _selectedImageFile = file;
+      _selectedFilePath = file?.path;
+      _isImageLoading = false;
+      setState(() {});
+      await _notifySelection(entity, filePath: _selectedFilePath);
+    } catch (_) {
+      if (!mounted || generation != _selectionGeneration) return;
+      _selectedImageFile = null;
+      _selectedFilePath = null;
+      _isImageLoading = false;
+      setState(() {});
+      await _notifySelection(entity);
+    }
+  }
+
+  Future<void> _notifySelection(AssetEntity entity, {String? filePath}) async {
+    final int generation = _selectionGeneration;
+    final SfMediaAsset asset = await entity.toSfMediaAsset(
+      cachedFilePath: filePath ?? _selectedFilePath,
+    );
+    if (!mounted || generation != _selectionGeneration) return;
+    widget.onAssetSelected?.call(asset);
   }
 
   Future<void> _loadAlbums() async {
@@ -240,15 +314,23 @@ class _SFMediaPickerState extends State<SFMediaPicker>
           );
         }
 
-        final AssetEntity resolvedSelection =
-            nextSelected ?? page.first;
+        final AssetEntity resolvedSelection = nextSelected ?? page.first;
 
         if (_selectedEntity?.id != resolvedSelection.id) {
-          _selectedEntity = resolvedSelection;
-          _pendingSelectedAssetId = resolvedSelection.id;
-          await _prepareVideoIfNeeded(_selectedEntity);
+          _handleSelection(resolvedSelection);
         } else if (_selectedEntity != null) {
-          await _prepareVideoIfNeeded(_selectedEntity);
+          if (resolvedSelection.type == AssetType.video) {
+            unawaited(
+              _prepareVideoIfNeeded(
+                resolvedSelection,
+                generation: _selectionGeneration,
+              ),
+            );
+          } else {
+            unawaited(
+              _loadImageForPreview(resolvedSelection, _selectionGeneration),
+            );
+          }
         }
       }
 
@@ -275,15 +357,26 @@ class _SFMediaPickerState extends State<SFMediaPicker>
     }
   }
 
-  Future<void> _prepareVideoIfNeeded(AssetEntity? entity) async {
+  Future<void> _prepareVideoIfNeeded(
+    AssetEntity? entity, {
+    int? generation,
+  }) async {
+    final int targetGeneration = generation ?? _selectionGeneration;
     _videoController?.removeListener(_onVideoControllerUpdated);
     await _videoController?.dispose();
     _videoController = null;
     _isVideoPlaying = false;
-    if (entity == null || entity.type != AssetType.video) return;
+    if (entity == null || entity.type != AssetType.video) {
+      if (mounted && targetGeneration == _selectionGeneration) {
+        setState(() {});
+      }
+      return;
+    }
 
     final File? file = await entity.file;
-    if (file == null) return;
+    if (!mounted || targetGeneration != _selectionGeneration || file == null) {
+      return;
+    }
 
     final VideoPlayerController controller = VideoPlayerController.file(file);
     await controller.initialize();
@@ -291,20 +384,23 @@ class _SFMediaPickerState extends State<SFMediaPicker>
     await controller.setVolume(0);
     controller.addListener(_onVideoControllerUpdated);
     await controller.play();
-    if (!mounted) return;
+    if (!mounted || targetGeneration != _selectionGeneration) {
+      controller.removeListener(_onVideoControllerUpdated);
+      await controller.dispose();
+      return;
+    }
+    _selectedFilePath = file.path;
+    _selectedImageFile = null;
+    _isImageLoading = false;
     setState(() {
       _videoController = controller;
       _isVideoPlaying = controller.value.isPlaying;
     });
+    await _notifySelection(entity, filePath: _selectedFilePath);
   }
 
   void _onSelect(AssetEntity entity) {
-    setState(() {
-      _selectedEntity = entity;
-      _pendingSelectedAssetId = entity.id;
-    });
-    widget.onAssetSelected?.call(entity.toSfMediaAsset());
-    unawaited(_prepareVideoIfNeeded(entity));
+    _handleSelection(entity);
   }
 
   void _onAlbumChanged(AssetPathEntity? album) {
@@ -316,6 +412,10 @@ class _SFMediaPickerState extends State<SFMediaPicker>
       _assets.clear();
       _selectedEntity = null;
       _pendingSelectedAssetId = null;
+      _selectedImageFile = null;
+      _selectedFilePath = null;
+      _isImageLoading = false;
+      _selectionGeneration++;
     });
     unawaited(_loadNextPage(reset: true));
   }
@@ -388,6 +488,8 @@ class _SFMediaPickerState extends State<SFMediaPicker>
           videoController: _videoController,
           isVideoPlaying: _isVideoPlaying,
           onToggleVideo: _toggleVideoPlayback,
+          imageFile: _selectedImageFile,
+          isImageLoading: _isImageLoading,
         ),
         AlbumDropdown(
           albums: _albums,

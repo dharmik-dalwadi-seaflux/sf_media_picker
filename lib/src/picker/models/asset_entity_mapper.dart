@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:photo_manager/photo_manager.dart';
 
 import 'sf_media_asset.dart';
@@ -16,7 +18,12 @@ SfMediaAssetType _toSfMediaAssetType(AssetType type) {
 }
 
 extension AssetEntityMapper on AssetEntity {
-  SfMediaAsset toSfMediaAsset() {
+  Future<SfMediaAsset> toSfMediaAsset({String? cachedFilePath}) async {
+    String? resolvedPath = cachedFilePath;
+    if (resolvedPath == null) {
+      final File? cachedFile = await file;
+      resolvedPath = cachedFile?.path;
+    }
     return SfMediaAsset(
       id: id,
       type: _toSfMediaAssetType(type),
@@ -26,6 +33,7 @@ extension AssetEntityMapper on AssetEntity {
       title: title,
       createDateTime: createDateTime,
       modifiedDateTime: modifiedDateTime,
+      filePath: resolvedPath,
     );
   }
 }

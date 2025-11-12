@@ -1,4 +1,4 @@
-## 0.1.0
+## 1.0.0
 
 - Initial public release of `sf_media_picker`
 - Instagram-inspired UI with looping video preview

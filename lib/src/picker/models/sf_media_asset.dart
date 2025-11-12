@@ -20,6 +20,7 @@ class SfMediaAsset {
     this.title,
     this.createDateTime,
     this.modifiedDateTime,
+    this.filePath,
   });
 
   /// Unique identifier provided by the underlying platform.
@@ -46,6 +47,9 @@ class SfMediaAsset {
   /// Last modification timestamp if available.
   final DateTime? modifiedDateTime;
 
+  /// Cached file path for the asset when available.
+  final String? filePath;
+
   /// Whether this asset represents a video.
   bool get isVideo => type == SfMediaAssetType.video;
 
@@ -56,6 +60,12 @@ class SfMediaAsset {
   ///
   /// Set [original] to `true` to request the original file where available.
   Future<File?> loadFile({bool original = false}) async {
+    if (!original && filePath != null) {
+      final File cachedFile = File(filePath!);
+      if (await cachedFile.exists()) {
+        return cachedFile;
+      }
+    }
     final AssetEntity? entity = await AssetEntity.fromId(id);
     if (entity == null) return null;
     return original ? entity.originFile : entity.file;
@@ -85,6 +95,7 @@ class SfMediaAsset {
     'title': title,
     'createDateTime': createDateTime?.toIso8601String(),
     'modifiedDateTime': modifiedDateTime?.toIso8601String(),
+    'filePath': filePath,
   };
 
   /// Creates an asset instance from [json].
@@ -105,6 +116,7 @@ class SfMediaAsset {
       title: json['title'] as String?,
       createDateTime: _parseDate(json['createDateTime']),
       modifiedDateTime: _parseDate(json['modifiedDateTime']),
+      filePath: json['filePath'] as String?,
     );
   }
 

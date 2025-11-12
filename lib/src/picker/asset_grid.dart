@@ -54,11 +54,15 @@ class AssetGrid extends StatelessWidget {
         itemBuilder: (BuildContext context, int index) {
           final AssetEntity entity = assets[index];
           return GestureDetector(
+            key: ValueKey<String>('grid_${entity.id}'),
             onTap: () => onAssetTap(entity),
             child: Stack(
               fit: StackFit.expand,
               children: <Widget>[
-                EntityThumbnail(entity: entity),
+                EntityThumbnail(
+                  key: ValueKey<String>('thumb_${entity.id}'),
+                  entity: entity,
+                ),
                 if (entity.type == AssetType.video)
                   Positioned(
                     right: 4,
