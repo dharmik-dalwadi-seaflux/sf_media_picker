@@ -12,13 +12,17 @@ A polished, Instagram-inspired media picker for Flutter. Let your users browse a
 - 🧩 Configurable preview height and grid density
 - ⚡ Pure Dart UI that works alongside existing `photo_manager`/`video_player` setups
 
+## Demo
+
+![SF Media Picker demo showing preview and grid](./docs/IMG_1223.jpg)
+
 ## Installation
 
 Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  sf_media_picker: ^1.0.0
+  sf_media_picker: ^1.0.1
 ```
 
 Or install from a local path:
@@ -184,12 +188,14 @@ Check out the [example](example) directory for a complete working example.
 ## Dependencies
 
 This package depends on:
+
 - [photo_manager](https://pub.dev/packages/photo_manager) - For accessing device media
 - [video_player](https://pub.dev/packages/video_player) - For video playback
 
 ## Package Structure
 
 This is a pure Dart/Flutter package with no native code. It's lightweight and only contains:
+
 - `lib/sf_media_picker.dart` - Single entry-point export
 - `lib/src/` - Widget implementation and private helpers
 - `example/` - Example app demonstrating usage
