@@ -14,7 +14,7 @@ A polished, Instagram-inspired media picker for Flutter. Let your users browse a
 
 ## Demo
 
-![SF Media Picker demo showing preview and grid](./docs/IMG_1223.jpg)
+![SF Media Picker demo showing preview and grid](./doc/IMG_1223.jpg)
 
 ## Installation
 
